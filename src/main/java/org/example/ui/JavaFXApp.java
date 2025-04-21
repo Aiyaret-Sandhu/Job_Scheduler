@@ -9,6 +9,7 @@ import javafx.stage.Stage;
 public class JavaFXApp extends Application {
 
     public static void launchApp(String[] args) {
+//        System.setProperty("javafx.sg.warn", "false");
         launch(args);
     }
 

@@ -10,7 +10,6 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
-import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
@@ -24,6 +23,8 @@ public class FCFSVisualizer extends Application {
 
     public static void launchVisualizer(List<FCFS.Job> jobs) {
         completedJobs = jobs;
+        // Disable JavaFX logging for PropertyValueFactory warnings
+        System.setProperty("javafx.sg.warn", "false");
         launch();
     }
 
@@ -53,7 +54,7 @@ public class FCFSVisualizer extends Application {
 
         // Set up the scene
         BorderPane root = new BorderPane(tabPane);
-        Scene scene = new Scene(root, 800, 600);
+        Scene scene = new Scene(root, 900, 650);
         primaryStage.setScene(scene);
         primaryStage.show();
     }
@@ -65,67 +66,113 @@ public class FCFSVisualizer extends Application {
         yAxis.setLabel("Time");
 
         BarChart<String, Number> ganttChart = new BarChart<>(xAxis, yAxis);
-        ganttChart.setTitle("Gantt Chart");
+        ganttChart.setTitle("FCFS Gantt Chart");
+        ganttChart.setLegendVisible(false);
+        ganttChart.setCategoryGap(50);
+        ganttChart.setBarGap(0);
 
-        XYChart.Series<String, Number> series = new XYChart.Series<>();
-        series.setName("Execution Timeline");
+        XYChart.Series<String, Number> executionSeries = new XYChart.Series<>();
+        executionSeries.setName("Execution");
+
+        XYChart.Series<String, Number> waitingSeries = new XYChart.Series<>();
+        waitingSeries.setName("Waiting");
 
         for (FCFS.Job job : completedJobs) {
-            series.getData().add(new XYChart.Data<>(job.jobId, job.startTime));
-            series.getData().add(new XYChart.Data<>(job.jobId, job.completionTime));
+            // Execution time (from start to completion)
+            XYChart.Data<String, Number> execData = new XYChart.Data<>(
+                    job.jobId,
+                    job.completionTime - job.startTime
+            );
+            execData.setNode(new CustomBar(job.jobId + "\n" + (job.completionTime - job.startTime), "execution"));
+            executionSeries.getData().add(execData);
+
+            // Waiting time (from arrival to start)
+            if (job.startTime > job.arrivalTime) {
+                XYChart.Data<String, Number> waitData = new XYChart.Data<>(
+                        job.jobId,
+                        job.startTime - job.arrivalTime
+                );
+                waitData.setNode(new CustomBar(job.jobId + "\n" + (job.startTime - job.arrivalTime), "waiting"));
+                waitingSeries.getData().add(waitData);
+            }
         }
 
-        ganttChart.getData().add(series);
+        ganttChart.getData().addAll(waitingSeries, executionSeries);
         return ganttChart;
     }
 
     private TableView<FCFS.Job> createJobTable() {
         TableView<FCFS.Job> table = new TableView<>();
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
 
-        TableColumn<FCFS.Job, String> jobIdCol = new TableColumn<>("Job ID");
-        jobIdCol.setCellValueFactory(new PropertyValueFactory<>("jobId"));
+        // Helper method to create columns with proper type safety
+        createColumn(table, "Job ID", "jobId", String.class);
+        createColumn(table, "Arrival Time", "arrivalTime", Integer.class);
+        createColumn(table, "Burst Time", "burstTime", Integer.class);
+        createColumn(table, "Start Time", "startTime", Integer.class);
+        createColumn(table, "Completion Time", "completionTime", Integer.class);
+        createColumn(table, "Turnaround Time", "turnaroundTime", Integer.class);
+        createColumn(table, "Waiting Time", "waitingTime", Integer.class);
+        createColumn(table, "Response Time", "responseTime", Integer.class);
 
-        TableColumn<FCFS.Job, Integer> arrivalTimeCol = new TableColumn<>("Arrival Time");
-        arrivalTimeCol.setCellValueFactory(new PropertyValueFactory<>("arrivalTime"));
-
-        TableColumn<FCFS.Job, Integer> burstTimeCol = new TableColumn<>("Burst Time");
-        burstTimeCol.setCellValueFactory(new PropertyValueFactory<>("burstTime"));
-
-        TableColumn<FCFS.Job, Integer> startTimeCol = new TableColumn<>("Start Time");
-        startTimeCol.setCellValueFactory(new PropertyValueFactory<>("startTime"));
-
-        TableColumn<FCFS.Job, Integer> completionTimeCol = new TableColumn<>("Completion Time");
-        completionTimeCol.setCellValueFactory(new PropertyValueFactory<>("completionTime"));
-
-        TableColumn<FCFS.Job, Integer> turnaroundTimeCol = new TableColumn<>("Turnaround Time");
-        turnaroundTimeCol.setCellValueFactory(new PropertyValueFactory<>("turnaroundTime"));
-
-        TableColumn<FCFS.Job, Integer> waitingTimeCol = new TableColumn<>("Waiting Time");
-        waitingTimeCol.setCellValueFactory(new PropertyValueFactory<>("waitingTime"));
-
-        TableColumn<FCFS.Job, Integer> responseTimeCol = new TableColumn<>("Response Time");
-        responseTimeCol.setCellValueFactory(new PropertyValueFactory<>("responseTime"));
-
-        table.getColumns().addAll(jobIdCol, arrivalTimeCol, burstTimeCol, startTimeCol, completionTimeCol, turnaroundTimeCol, waitingTimeCol, responseTimeCol);
         table.getItems().addAll(completedJobs);
-
         return table;
     }
+
+    private <T> void createColumn(TableView<T> table, String title, String property, Class<?> propertyType) {
+        TableColumn<T, Object> column = new TableColumn<>(title);
+        column.setCellValueFactory(data -> {
+            try {
+                // Use reflection to get the property value
+                java.lang.reflect.Field field = data.getValue().getClass().getDeclaredField(property);
+                field.setAccessible(true);
+                Object value = field.get(data.getValue());
+                return new javafx.beans.property.SimpleObjectProperty<>(value);
+            } catch (Exception e) {
+                return new javafx.beans.property.SimpleObjectProperty<>("N/A");
+            }
+        });
+        table.getColumns().add(column);
+    }
+
 
     private Text createMetricsView() {
         double cpuUtilization = calculateCpuUtilization();
         double throughput = calculateThroughput();
         double avgTurnaround = calculateAverageTurnaroundTime();
         double avgWaiting = calculateAverageWaitingTime();
+        double avgResponse = completedJobs.stream().mapToInt(job -> job.responseTime).average().orElse(0);
+
+        int minWaiting = completedJobs.stream().mapToInt(job -> job.waitingTime).min().orElse(0);
+        int maxWaiting = completedJobs.stream().mapToInt(job -> job.waitingTime).max().orElse(0);
+        int minTurnaround = completedJobs.stream().mapToInt(job -> job.turnaroundTime).min().orElse(0);
+        int maxTurnaround = completedJobs.stream().mapToInt(job -> job.turnaroundTime).max().orElse(0);
 
         String metrics = String.format("""
                 CPU Utilization: %.2f%%
                 Throughput: %.2f jobs/unit time
-                Average Turnaround Time: %.2f
-                Average Waiting Time: %.2f
-                """, cpuUtilization, throughput, avgTurnaround, avgWaiting);
+                
+                Turnaround Time:
+                  Average: %.2f
+                  Minimum: %d
+                  Maximum: %d
+                
+                Waiting Time:
+                  Average: %.2f
+                  Minimum: %d
+                  Maximum: %d
+                
+                Response Time:
+                  Average: %.2f
+                """,
+                cpuUtilization, throughput,
+                avgTurnaround, minTurnaround, maxTurnaround,
+                avgWaiting, minWaiting, maxWaiting,
+                avgResponse);
 
-        return new Text(metrics);
+        Text metricsText = new Text(metrics);
+        metricsText.setStyle("-fx-font-family: monospace; -fx-font-size: 14;");
+        return metricsText;
     }
 
     private double calculateCpuUtilization() {
@@ -145,5 +192,20 @@ public class FCFSVisualizer extends Application {
 
     private double calculateAverageWaitingTime() {
         return completedJobs.stream().mapToInt(job -> job.waitingTime).average().orElse(0);
+    }
+
+    // Custom bar class for Gantt chart with better visualization
+    private static class CustomBar extends javafx.scene.layout.StackPane {
+        CustomBar(String text, String styleClass) {
+            javafx.scene.control.Label label = new javafx.scene.control.Label(text);
+            label.setStyle("-fx-text-fill: white; -fx-font-weight: bold;");
+
+            javafx.scene.shape.Rectangle rectangle = new javafx.scene.shape.Rectangle();
+            rectangle.setHeight(20);
+            rectangle.widthProperty().bind(this.widthProperty());
+
+            this.getChildren().addAll(rectangle, label);
+            this.getStyleClass().add(styleClass);
+        }
     }
 }
