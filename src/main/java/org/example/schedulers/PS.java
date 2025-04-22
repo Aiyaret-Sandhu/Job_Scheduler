@@ -4,19 +4,19 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Shortest Job First (SJF) CPU Scheduling Algorithm Implementation
+ * Priority Scheduling (PS) CPU Scheduling Algorithm Implementation
  *
  * Data structures used:
- * - PriorityQueue: For ordering jobs by burst/remaining time
+ * - PriorityQueue: For ordering jobs by priority
  * - ArrayList: For storing completed jobs and results
  * - HashMap: For O(1) job lookups
  * - Stream API: For efficient statistical calculations
  *
  * This implementation supports:
- * 1. Non-preemptive SJF - scheduled based on original burst time
- * 2. Preemptive SJF (SRTF) - can be preempted by jobs with shorter remaining time
+ * 1. Non-preemptive Priority Scheduling - jobs run to completion based on priority
+ * 2. Preemptive Priority Scheduling - jobs can be preempted by higher-priority jobs
  */
-public class SJF {
+public class PS {
 
     /**
      * Job class to encapsulate all process-related data
@@ -27,24 +27,26 @@ public class SJF {
         public int arrivalTime;
         public int burstTime;
         public int remainingTime;
-        public int startTime = -1;      // First time the job starts executing
+        public int priority;             // Lower value = higher priority
+        public int startTime = -1;       // First time the job starts executing
         public int completionTime;
         public int turnaroundTime;
         public int waitingTime;
         public int responseTime;
         public List<TimeSlice> executionHistory = new ArrayList<>();
 
-        public Job(String jobId, int arrivalTime, int burstTime) {
+        public Job(String jobId, int arrivalTime, int burstTime, int priority) {
             this.jobId = jobId;
             this.arrivalTime = arrivalTime;
             this.burstTime = burstTime;
             this.remainingTime = burstTime;
+            this.priority = priority;
         }
         
         @Override
         public String toString() {
             return jobId + " (Arrival: " + arrivalTime + ", Burst: " + burstTime + 
-                   ", Remaining: " + remainingTime + ")";
+                   ", Priority: " + priority + ", Remaining: " + remainingTime + ")";
         }
     }
     
@@ -76,7 +78,7 @@ public class SJF {
     private final Map<String, Job> jobMap = new HashMap<>();
     
     // Mode setting: preemptive or non-preemptive
-    private boolean preemptive = false;  // Default is non-preemptive SJF
+    private boolean preemptive = false;  // Default is non-preemptive priority scheduling
     
     /**
      * Adds a new job to be scheduled
@@ -84,21 +86,22 @@ public class SJF {
      * @param jobId Unique identifier for the job
      * @param arrivalTime Time at which the job arrives in the system
      * @param burstTime Time required for job execution
+     * @param priority Priority level (lower value = higher priority)
      */
-    public void addJob(String jobId, int arrivalTime, int burstTime) {
+    public void addJob(String jobId, int arrivalTime, int burstTime, int priority) {
         if (arrivalTime < 0 || burstTime <= 0) {
             throw new IllegalArgumentException("Invalid job parameters");
         }
-        Job job = new Job(jobId, arrivalTime, burstTime);
+        Job job = new Job(jobId, arrivalTime, burstTime, priority);
         jobs.add(job);
         jobMap.put(jobId, job);  // Store in map for O(1) lookup
     }
     
     /**
      * Set scheduling mode to preemptive or non-preemptive
-     * In preemptive mode (SRTF), jobs can be interrupted when a shorter job arrives
+     * In preemptive mode, jobs can be interrupted when a higher priority job arrives
      * 
-     * @param preemptive true for Shortest Remaining Time First (SRTF), false for SJF
+     * @param preemptive true for preemptive priority scheduling, false for non-preemptive
      */
     public void setPreemptive(boolean preemptive) {
         this.preemptive = preemptive;
@@ -106,22 +109,22 @@ public class SJF {
     
     public String getModeDescription() {
         return preemptive ? 
-                "Preemptive Shortest Job First (SRTF)" : 
-                "Non-Preemptive Shortest Job First (SJF)";
+                "Preemptive Priority Scheduling" : 
+                "Non-Preemptive Priority Scheduling";
     }
     
     /**
-     * Execute the SJF scheduling algorithm
+     * Execute the Priority Scheduling algorithm
      *
-     * Algorithm for Non-preemptive SJF:
+     * Algorithm for Non-preemptive Priority Scheduling:
      * 1. Sort jobs by arrival time
-     * 2. At each completion point, select the shortest job that has arrived
+     * 2. At each completion point, select the highest priority job that has arrived
      * 3. Execute the selected job to completion
      *
-     * Algorithm for Preemptive SJF (SRTF):
+     * Algorithm for Preemptive Priority Scheduling:
      * 1. Sort jobs by arrival time
-     * 2. At each decision point (job arrival/completion), select job with shortest remaining time
-     * 3. Execute the selected job until next decision point
+     * 2. At each decision point (job arrival), select job with highest priority
+     * 3. Execute the selected job until next decision point or completion
      *
      * Time Complexity:
      * O(n²) in worst case due to job selection at each decision point
@@ -182,18 +185,10 @@ public class SJF {
                     continue;
                 }
                 
-                // Select job with shortest burst/remaining time
-                if (preemptive) {
-                    // In preemptive mode (SRTF), select based on remaining time
-                    currentJob = availableJobs.stream()
-                            .min(Comparator.comparingInt(job -> job.remainingTime))
-                            .orElse(null);
-                } else {
-                    // In non-preemptive mode (SJF), select based on burst time
-                    currentJob = availableJobs.stream()
-                            .min(Comparator.comparingInt(job -> job.burstTime))
-                            .orElse(null);
-                }
+                // Select job with highest priority (lowest priority value)
+                currentJob = availableJobs.stream()
+                        .min(Comparator.comparingInt(job -> job.priority))
+                        .orElse(null);
                 
                 // Remove selected job from available jobs
                 availableJobs.remove(currentJob);
@@ -237,7 +232,7 @@ public class SJF {
                 completedJobs.add(currentJob);
                 currentJob = null;
             } else if (preemptive) {
-                // In preemptive mode, check if a new job with shorter remaining time has arrived
+                // In preemptive mode, check if a higher priority job has arrived
                 boolean preempt = false;
                 
                 // Add newly arrived jobs to available jobs
@@ -249,7 +244,7 @@ public class SJF {
                         iterator.remove();
                         
                         // Check if this job should preempt current one
-                        if (job.remainingTime < currentJob.remainingTime) {
+                        if (job.priority < currentJob.priority) {
                             preempt = true;
                         }
                     } else {
@@ -259,10 +254,10 @@ public class SJF {
                 }
                 
                 if (preempt) {
-                    // Find job with shortest remaining time
+                    // Find job with highest priority (lowest priority value)
                     availableJobs.add(currentJob); // Include current job in selection
                     Job nextJob = availableJobs.stream()
-                            .min(Comparator.comparingInt(job -> job.remainingTime))
+                            .min(Comparator.comparingInt(job -> job.priority))
                             .orElse(null);
                     
                     if (nextJob != currentJob) {
@@ -287,6 +282,7 @@ public class SJF {
             // Add remaining available jobs back to pending queue
             if (!availableJobs.isEmpty()) {
                 remainingJobs.addAll(0, availableJobs); // Add at beginning to maintain order
+                
                 // Re-sort by arrival time
                 remainingJobs.sort(Comparator.comparingInt(job -> job.arrivalTime));
             }
@@ -348,19 +344,11 @@ public class SJF {
      * @return The makespan value
      */
     public int calculateMakespan() {
-        if (completedJobs.isEmpty()) return 0;
-
-        int lastCompletion = completedJobs.stream()
-                .mapToInt(job -> job.completionTime)
-                .max()
-                .orElse(0);
-
-        int firstArrival = completedJobs.stream()
-                .mapToInt(job -> job.arrivalTime)
-                .min()
-                .orElse(0);
-
-        return lastCompletion - firstArrival;
+        return completedJobs.isEmpty() ? 0 : 
+                completedJobs.stream()
+                    .mapToInt(job -> job.completionTime)
+                    .max()
+                    .orElse(0);
     }
     
     /**
@@ -424,10 +412,7 @@ public class SJF {
         }
 
         // Collect all time slices and sort them by start time
-        List<TimeSlice> allSlices = completedJobs.stream()
-                .flatMap(job -> job.executionHistory.stream())
-                .sorted(Comparator.comparingInt(slice -> slice.startTime))
-                .collect(Collectors.toList());
+        List<TimeSlice> allSlices = getAllTimeSlices();
 
         // Map of job IDs to colors for visualization
         Map<String, String> jobColors = new HashMap<>();
@@ -441,52 +426,65 @@ public class SJF {
             colorIndex++;
         }
 
-        // Build top border
+        // Chart width settings
+        final int sliceWidth = 9; // Width of each time slice box
         StringBuilder topBorder = new StringBuilder("+");
-        for (int i = 0; i < allSlices.size(); i++) {
-            topBorder.append("-".repeat(8)).append("+");
-        }
-
-        // Build job labels row with colors
-        StringBuilder jobsRow = new StringBuilder("|");
-        for (TimeSlice slice : allSlices) {
-            String color = jobColors.getOrDefault(slice.jobId, colors[0]);
-            jobsRow.append(" ").append(color).append(String.format("%-6s", slice.jobId)).append(resetColor).append(" |");
-        }
-
-        // Build bottom border
+        StringBuilder jobLine = new StringBuilder("|");
         StringBuilder bottomBorder = new StringBuilder("+");
-        for (int i = 0; i < allSlices.size(); i++) {
-            bottomBorder.append("-".repeat(8)).append("+");
+
+        // Build the chart rows
+        for (TimeSlice slice : allSlices) {
+            // Add top border segment
+            topBorder.append("-".repeat(sliceWidth)).append("+");
+
+            // Add job information with color
+            String color = jobColors.getOrDefault(slice.jobId, colors[0]);
+            Job job = getJob(slice.jobId);
+
+            String jobInfo = job != null ?
+                    String.format("%s%s(P:%d)%s", color, job.jobId, job.priority, resetColor) :
+                    String.format("%s", "");
+
+            // Center the job info in the cell
+            int padding = sliceWidth - jobInfo.length() + color.length() + resetColor.length();
+            int leftPad = padding / 2;
+            int rightPad = padding - leftPad;
+
+            jobLine.append(" ".repeat(leftPad)).append(jobInfo).append(" ".repeat(rightPad)).append("|");
+
+            // Add bottom border segment
+            bottomBorder.append("-".repeat(sliceWidth)).append("+");
         }
 
-        // Build time markers
+        // Build the time markers
         StringBuilder timeMarkers = new StringBuilder();
         timeMarkers.append(0);
+        int lastPosition = 1;
 
-        for (int i = 0; i < allSlices.size(); i++) {
-            TimeSlice slice = allSlices.get(i);
+        for (TimeSlice slice : allSlices) {
+            // Calculate position for the end time marker
+            int position = lastPosition + sliceWidth + 1;
 
-            // Calculate space needed before this time marker
+            // Add spaces up to the position minus the length of the time string
             String timeStr = String.valueOf(slice.endTime);
-            int spacesNeeded = 9 - timeStr.length(); // Each cell is 8 chars wide + 1 for the border
+            int spacesNeeded = position - lastPosition - timeStr.length();
 
-            if (i == 0) {
-                // First marker needs special handling
-                spacesNeeded -= 1; // Account for the initial "0"
+            if (spacesNeeded > 0) {
+                timeMarkers.append(" ".repeat(spacesNeeded));
             }
 
-            timeMarkers.append(" ".repeat(spacesNeeded)).append(timeStr);
+            timeMarkers.append(timeStr);
+            lastPosition = position;
         }
 
-        // Print the chart
+        // Print the complete chart
         System.out.println(topBorder);
-        System.out.println(jobsRow);
+        System.out.println(jobLine);
         System.out.println(bottomBorder);
         System.out.println(timeMarkers);
         System.out.println();
     }
-    
+
     /**
      * Print job scheduling data in tabular format
      */
@@ -498,13 +496,13 @@ public class SJF {
 
         System.out.println("\nPROCESS SCHEDULE TABLE }-:");
 
-        String headerFormat = "+-----------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+%n";
-        String rowFormat = "| %-9s | %-13d | %-13d | %-13d | %-13d | %-13d | %-13d | %-13d |%n";
+        String headerFormat = "+-----------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------+%n";
+        String rowFormat = "| %-9s | %-13d | %-13d | %-13d | %-13d | %-13d | %-13d | %-13d | %-13d |%n";
 
         StringBuilder table = new StringBuilder();
         table.append(String.format(headerFormat));
-        table.append(String.format("| %-9s | %-13s | %-13s | %-13s | %-13s | %-13s | %-13s | %-13s |%n",
-                "Process", "Arrival Time", "Burst Time", "Start Time", "Completion", "Turnaround", "Waiting", "Response"));
+        table.append(String.format("| %-9s | %-13s | %-13s | %-13s | %-13s | %-13s | %-13s | %-13s | %-13s |%n",
+                "Process", "Arrival Time", "Burst Time", "Priority", "Start Time", "Completion", "Turnaround", "Waiting", "Response"));
         table.append(String.format(headerFormat));
 
         // Sort jobs by completion time for better readability
@@ -515,6 +513,7 @@ public class SJF {
                             job.jobId,
                             job.arrivalTime,
                             job.burstTime,
+                            job.priority,
                             job.startTime,
                             job.completionTime,
                             job.turnaroundTime,
@@ -525,16 +524,16 @@ public class SJF {
 
         table.append(String.format(headerFormat));
 
-        // Add averages row
-        table.append(String.format("| %-9s | %-13s | %-13.2f | %-13s | %-13s | %-13.2f | %-13.2f | %-13.2f |%n",
+        // Add averages row - skip priority column with "-" as it's not applicable
+        table.append(String.format("| %-9s | %-13s | %-13.2f | %-13s | %-13s | %-13s | %-13.2f | %-13.2f | %-13.2f |%n",
                 "Average", "-",
                 completedJobs.stream().mapToDouble(job -> job.burstTime).average().orElse(0),
-                "-", "-",
+                "-", "-", "-",
                 calculateAverageTurnaroundTime(),
                 calculateAverageWaitingTime(),
                 calculateAverageResponseTime()));
         table.append(String.format(headerFormat));
-        System.out.println(table.toString());
+        System.out.println(table);
     }
     
     /**
@@ -557,6 +556,10 @@ public class SJF {
         int maxTurnaround = completedJobs.stream().mapToInt(job -> job.turnaroundTime).max().orElse(0);
         int minResponse = completedJobs.stream().mapToInt(job -> job.responseTime).min().orElse(0);
         int maxResponse = completedJobs.stream().mapToInt(job -> job.responseTime).max().orElse(0);
+        
+        // Calculate min/max priorities for analysis
+        int minPriority = completedJobs.stream().mapToInt(job -> job.priority).min().orElse(0);
+        int maxPriority = completedJobs.stream().mapToInt(job -> job.priority).max().orElse(0);
 
         // Calculate scheduling length (makespan)
         int makespan = calculateMakespan();
@@ -590,6 +593,9 @@ public class SJF {
         System.out.printf(intFormat, "Minimum Response Time", minResponse);
         System.out.printf(intFormat, "Maximum Response Time", maxResponse);
         System.out.printf(border);
+        System.out.printf(intFormat, "Lowest Priority (Highest)", minPriority);
+        System.out.printf(intFormat, "Highest Priority (Lowest)", maxPriority);
+        System.out.printf(border);
         if (preemptive) {
             System.out.printf(intFormat, "Total Preemptions", totalPreemptions);
         }
@@ -604,11 +610,19 @@ public class SJF {
                 (maxWaiting - minWaiting <= avgWaiting * 0.5 ? "Good" : "Could be improved"));
         System.out.println("Fairness: " +
                 (maxTurnaround - minTurnaround <= avgTurnaround * 0.3 ? "Good" : "Varies significantly"));
+        
+        // Priority-specific metrics
+        System.out.println("Priority Balance: " + 
+                ((maxWaiting - minWaiting) > 2 * avgWaiting ? 
+                 "Low-priority jobs may be experiencing starvation" : 
+                 "Good balance across priority levels"));
+        
         if (preemptive) {
             System.out.println("Preemption Overhead: " +
                     (totalPreemptions <= completedJobs.size() * 0.5 ? "Low" :
                      totalPreemptions <= completedJobs.size() ? "Moderate" : "High"));
         }
+        
         System.out.println("Algorithm Efficiency: " + 
                 (avgTurnaround <= 1.2 * avgBurstTime() ? "Excellent" : 
                  avgTurnaround <= 1.5 * avgBurstTime() ? "Good" : "Fair"));
@@ -647,26 +661,26 @@ public class SJF {
     }
     
     /**
-     * Prints educational information about the SJF algorithm
+     * Prints educational information about the Priority Scheduling algorithm
      */
     public void printAlgorithmInfo() {
-        System.out.println("\nSHORTEST JOB FIRST (SJF) SCHEDULING ALGORITHM\n");
+        System.out.println("\nPRIORITY SCHEDULING ALGORITHM\n");
 
         System.out.println("DESCRIPTION:");
-        System.out.println("Shortest Job First (SJF) is a CPU scheduling algorithm that selects the job");
-        System.out.println("with the smallest execution time first. It aims to minimize the average");
-        System.out.println("waiting time across all processes.");
+        System.out.println("Priority Scheduling is a CPU scheduling algorithm that selects jobs");
+        System.out.println("based on their priority value. Lower priority values typically represent");
+        System.out.println("higher importance/urgency, and these jobs are executed first.");
 
         System.out.println("\nVARIATIONS:");
-        System.out.println("1. Non-preemptive SJF: Once a process starts executing, it runs to completion");
-        System.out.println("2. Preemptive SJF (SRTF): If a new process arrives with a shorter remaining");
-        System.out.println("   time than the currently running process, the CPU is preempted");
+        System.out.println("1. Non-preemptive Priority Scheduling: Once a process starts executing, it runs to completion");
+        System.out.println("2. Preemptive Priority Scheduling: If a new process arrives with higher priority");
+        System.out.println("   than the currently running process, the CPU is preempted");
 
         System.out.println("\nCHARACTERISTICS:");
-        System.out.println("- Optimal for minimizing average waiting time");
         System.out.println("- " + (preemptive ? "Preemptive" : "Non-preemptive") + " in current implementation");
-        System.out.println("- Requires prior knowledge of job execution time");
-        System.out.println("- Can lead to starvation of longer jobs in busy systems");
+        System.out.println("- Requires assigning priority values to each process");
+        System.out.println("- Can lead to starvation of lower-priority jobs");
+        System.out.println("- Priority can be static (fixed) or dynamic (changing during execution)");
 
         System.out.println("\nMETRICS CALCULATED:");
         System.out.println("1. Turnaround Time: Time from arrival to completion");
@@ -679,26 +693,31 @@ public class SJF {
         }
 
         System.out.println("\nADVANTAGES:");
-        System.out.println("- Optimal average waiting time among all scheduling algorithms");
-        System.out.println("- Good for systems where job lengths are known in advance");
-        System.out.println("- " + (preemptive ? "SRTF provides better response time for short processes" : 
+        System.out.println("- Allows critical processes to be executed first");
+        System.out.println("- Better response time for important processes");
+        System.out.println("- " + (preemptive ? "Higher system responsiveness to critical processes" : 
                                 "Simpler implementation with no context switching overhead"));
 
         System.out.println("\nDISADVANTAGES:");
-        System.out.println("- Requires prior knowledge of job execution times");
-        System.out.println("- Potential starvation for longer jobs");
+        System.out.println("- Can lead to starvation of lower-priority processes");
+        System.out.println("- Requires defining priorities, which may be subjective");
         System.out.println("- " + (preemptive ? "Overhead from context switching during preemption" : 
-                                "Long jobs can block shorter jobs that arrive later"));
+                                "Important tasks arriving shortly after lower-priority tasks must wait"));
+        System.out.println("- Priority inversion problem can occur without proper handling");
 
         System.out.println("\nUSE CASES:");
-        System.out.println("- Batch processing systems where job times are known");
-        System.out.println("- Systems optimized for minimizing average waiting time");
-        System.out.println("- " + (preemptive ? "Interactive systems requiring good response time" : 
-                                "Systems where context switching overhead is significant"));
+        System.out.println("- Real-time systems with tasks of varying importance");
+        System.out.println("- Multi-user environments where some users have higher priority");
+        System.out.println("- Systems with critical and non-critical tasks");
+        System.out.println("- " + (preemptive ? "Environments requiring immediate response to critical events" : 
+                                "Environments where context-switching overhead must be minimized"));
 
         System.out.println("\nCURRENT CONFIGURATION:");
         System.out.println("- Mode: " + getModeDescription());
         System.out.println("- Total Jobs: " + jobs.size());
+        System.out.println("- Priority Range: " + completedJobs.stream().mapToInt(j -> j.priority).min().orElse(0) + 
+                           " to " + completedJobs.stream().mapToInt(j -> j.priority).max().orElse(0) + 
+                           " (lower value = higher priority)");
     }
 
     /**
@@ -707,14 +726,41 @@ public class SJF {
      */
     public String getResultsAsCsv() {
         StringBuilder sb = new StringBuilder();
-        sb.append("Job ID,Arrival Time,Burst Time,Start Time,Completion Time,Turnaround Time,Waiting Time,Response Time\n");
+        sb.append("Job ID,Arrival Time,Burst Time,Priority,Start Time,Completion Time,Turnaround Time,Waiting Time,Response Time\n");
 
         for (Job job : completedJobs) {
-            sb.append(String.format("%s,%d,%d,%d,%d,%d,%d,%d%n",
-                    job.jobId, job.arrivalTime, job.burstTime, job.startTime, job.completionTime,
+            sb.append(String.format("%s,%d,%d,%d,%d,%d,%d,%d,%d%n",
+                    job.jobId, job.arrivalTime, job.burstTime, job.priority, job.startTime, job.completionTime,
                     job.turnaroundTime, job.waitingTime, job.responseTime));
         }
 
         return sb.toString();
+    }
+    
+    /**
+     * Export metrics summary in CSV format for data analysis
+     * @return CSV formatted string with key performance metrics
+     */
+    public String getMetricsAsCsv() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Metric,Value\n");
+        sb.append(String.format("CPU Utilization,%.2f%%\n", calculateCpuUtilization()));
+        sb.append(String.format("Throughput,%.2f\n", calculateThroughput()));
+        sb.append(String.format("Average Turnaround Time,%.2f\n", calculateAverageTurnaroundTime()));
+        sb.append(String.format("Average Waiting Time,%.2f\n", calculateAverageWaitingTime()));
+        sb.append(String.format("Average Response Time,%.2f\n", calculateAverageResponseTime()));
+        sb.append(String.format("Algorithm,Priority Scheduling (%s)\n", preemptive ? "Preemptive" : "Non-Preemptive"));
+        return sb.toString();
+    }
+
+    /**
+     * Get all time slices for visualization purposes
+     * @return List of all execution time slices across all jobs
+     */
+    public List<TimeSlice> getAllTimeSlices() {
+        return completedJobs.stream()
+                .flatMap(job -> job.executionHistory.stream())
+                .sorted(Comparator.comparingInt(slice -> slice.startTime))
+                .collect(Collectors.toList());
     }
 }

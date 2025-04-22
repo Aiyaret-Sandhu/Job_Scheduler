@@ -292,66 +292,93 @@ public class RR {
     }
 
     /**
-     * Print a Gantt chart of the job execution
-     * Uses efficient string building with StringBuilder
+     * Prints a text-based Gantt chart of the job execution
+     * Uses efficient string building with fixed-width formatting and precise time marker alignment
      */
     public void printGanttChart() {
+        System.out.println("\nGANTT CHART }--:");
+
         if (completedJobs.isEmpty()) {
             System.out.println("No jobs completed yet.");
             return;
         }
 
-        System.out.println("\nGANTT CHART }-:");
-
-        // Collect all time slices and sort them using a merge sort based algorithm
+        // Collect all time slices and sort them by start time
         List<TimeSlice> allSlices = completedJobs.stream()
                 .flatMap(job -> job.executionHistory.stream())
                 .sorted(Comparator.comparingInt(slice -> slice.startTime))
                 .collect(Collectors.toList());
 
-        // Use HashMap for O(1) color lookup by job ID
+        // Map of job IDs to colors for visualization
         Map<String, String> jobColors = new HashMap<>();
-        String[] colors = {"\u001B[42m", "\u001B[43m", "\u001B[44m", "\u001B[45m", "\u001B[46m", "\u001B[41m"};
+        String[] colors = {"\u001B[44m", "\u001B[42m", "\u001B[46m", "\u001B[45m", "\u001B[43m", "\u001B[41m"};
         String resetColor = "\u001B[0m";
 
-        // Assign colors to jobs - O(n) operation
+        // Assign colors to jobs
         int colorIndex = 0;
+        Set<String> processedJobIds = new HashSet<>();
         for (Job job : completedJobs) {
-            jobColors.put(job.jobId, colors[colorIndex % colors.length]);
-            colorIndex++;
+            if (!processedJobIds.contains(job.jobId)) {
+                jobColors.put(job.jobId, colors[colorIndex % colors.length]);
+                processedJobIds.add(job.jobId);
+                colorIndex++;
+            }
         }
 
-        // Use StringBuilder for efficient string concatenation
-        StringBuilder chart = new StringBuilder();
+        // Fixed width for each cell
+        final int cellWidth = 8;
 
-        // Build top border
-        chart.append("+");
-        for (int i = 0; i < allSlices.size(); i++) {
-            chart.append("--------+");
-        }
-        chart.append("\n|");
+        // Build chart components
+        StringBuilder topBorder = new StringBuilder("+");
+        StringBuilder jobsRow = new StringBuilder("|");
+        StringBuilder bottomBorder = new StringBuilder("+");
 
-        // Build job labels with colors
+        // Build the chart structure
         for (TimeSlice slice : allSlices) {
+            topBorder.append("-".repeat(cellWidth)).append("+");
+            bottomBorder.append("-".repeat(cellWidth)).append("+");
+
             String color = jobColors.getOrDefault(slice.jobId, colors[0]);
-            chart.append(String.format(" %s%5s%s |", color, slice.jobId, resetColor));
+            jobsRow.append(" ").append(color).append(String.format("%-6s", slice.jobId)).append(resetColor).append(" |");
         }
-        chart.append("\n+");
 
-        // Build bottom border
+        // Build time markers with precise alignment
+        StringBuilder timeMarkers = new StringBuilder();
+
+        // Add first time marker (usually 0)
+        timeMarkers.append(allSlices.get(0).startTime);
+
+        // Position tracking
+        int[] positions = new int[allSlices.size() + 1];
+        positions[0] = 0;  // Start position
+
+        // Calculate exact positions for each marker
         for (int i = 0; i < allSlices.size(); i++) {
-            chart.append("--------+");
-        }
-        chart.append("\n");
-
-        // Build timeline
-        chart.append("0");
-        for (TimeSlice slice : allSlices) {
-            int spaces = 8 - String.valueOf(slice.endTime).length();
-            chart.append(" ".repeat(spaces)).append(slice.endTime);
+            positions[i + 1] = positions[0] + (i + 1) * (cellWidth + 1);  // +1 for the border
         }
 
-        System.out.println(chart.toString());
+        // Add time markers at the precise positions
+        for (int i = 0; i < allSlices.size(); i++) {
+            String currentMarker = String.valueOf(allSlices.get(i).endTime);
+            int targetPosition = positions[i + 1];
+
+            // Calculate spaces needed before this marker
+            int currentPosition = timeMarkers.length();
+            int spacesNeeded = targetPosition - currentPosition - currentMarker.length() + 1;
+
+            if (spacesNeeded > 0) {
+                timeMarkers.append(" ".repeat(spacesNeeded));
+            }
+
+            timeMarkers.append(currentMarker);
+        }
+
+        // Print the chart
+        System.out.println(topBorder);
+        System.out.println(jobsRow);
+        System.out.println(bottomBorder);
+        System.out.println(timeMarkers);
+        System.out.println();
     }
 
     /**

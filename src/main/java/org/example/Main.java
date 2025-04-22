@@ -10,6 +10,9 @@ import org.example.visualizers.RRVisualizer;
 import org.example.schedulers.SJF;
 import org.example.visualizers.SJFVisualizer;
 
+import org.example.schedulers.PS;
+import org.example.visualizers.PSVisualizer;
+
 import java.util.Scanner;
 
 
@@ -24,6 +27,7 @@ public class Main {
         System.out.println("1. First-Come, First-Served (FCFS)");
         System.out.println("2. Round Robin (RR)");
         System.out.println("3. Shortest Job First (SJF)");
+        System.out.println("4. Priority Scheduling (PS)");  // Add this line
         // Add other algorithms as needed
         System.out.print("Select algorithm: ");
         
@@ -69,6 +73,20 @@ public class Main {
                     runSJF(scanner, true, false);  // Dummy data, non-preemptive
                 }
                 break;
+            case 4:  // Add case for PS
+                System.out.println("1. Enter custom data");
+                System.out.println("2. Use dummy data (Preemptive)");
+                System.out.println("3. Use dummy data (Non-Preemptive)");
+                System.out.print("Select option: ");
+                int psOption = scanner.nextInt();
+                if (psOption == 1) {
+                    runPS(scanner, false, true);  // Custom data, default to preemptive
+                } else if (psOption == 2) {
+                    runPS(scanner, true, true);   // Dummy data, preemptive
+                } else {
+                    runPS(scanner, true, false);  // Dummy data, non-preemptive
+                }
+                break;
             // Add other cases for other algorithms
             default:
                 System.out.println("Invalid choice");
@@ -111,6 +129,12 @@ public class Main {
         scheduler.printGanttChart();
         scheduler.printTableData();
         scheduler.printMetrics();
+
+        // Show algorithm information if requested
+        System.out.print("\nShow algorithm information? (y/n): ");
+        if (scanner.next().equalsIgnoreCase("y")) {
+            scheduler.printAlgorithmInfo();
+        }
         
         // Ask if user wants to see the visualization
         System.out.print("\nLaunch graphical visualizer? (y/n): ");
@@ -265,6 +289,80 @@ public class Main {
             SJFVisualizer.launchVisualizer(
                 scheduler.getCompletedJobs(),
                 preemptive
+            );
+        }
+    }
+
+    private static void runPS(Scanner scanner, boolean useDummyData, boolean preemptive) {
+        PS scheduler = new PS();
+        scheduler.setPreemptive(preemptive);
+        
+        if (useDummyData) {
+            // Add dummy data with different patterns to show algorithm behavior and priorities
+            scheduler.addJob("P1", 0, 5, 3);  // Early arrival, medium burst, medium priority
+            scheduler.addJob("P2", 1, 3, 1);  // Early arrival, short burst, high priority
+            scheduler.addJob("P3", 2, 8, 4);  // Early arrival, long burst, low priority
+            scheduler.addJob("P4", 3, 2, 2);  // Later arrival, short burst, high-medium priority
+            scheduler.addJob("P5", 4, 4, 5);  // Latest arrival, medium burst, lowest priority
+            
+            System.out.println("Using dummy data for Priority Scheduling");
+            System.out.println("Mode: " + (preemptive ? "Preemptive" : "Non-Preemptive"));
+            System.out.println("Note: Lower priority value means higher priority");
+        } else {
+            // Get scheduling mode from user if not already set
+            if (!useDummyData) {
+                System.out.println("Select mode:");
+                System.out.println("1. Preemptive (Higher priority job can interrupt running job)");
+                System.out.println("2. Non-Preemptive");
+                System.out.print("Choice: ");
+                int modeChoice = scanner.nextInt();
+                scheduler.setPreemptive(modeChoice == 1);
+            }
+            
+            // Get job data from user
+            System.out.print("Enter number of processes: ");
+            int n = scanner.nextInt();
+            
+            System.out.println("Note: Lower priority value means higher priority (1 = highest)");
+            
+            for (int i = 0; i < n; i++) {
+                System.out.println("\nProcess " + (i+1) + ":");
+                System.out.print("ID: ");
+                String id = scanner.next();
+                System.out.print("Arrival time: ");
+                int arrival = scanner.nextInt();
+                System.out.print("Burst time: ");
+                int burst = scanner.nextInt();
+                System.out.print("Priority (1=highest): ");
+                int priority = scanner.nextInt();
+                
+                scheduler.addJob(id, arrival, burst, priority);
+            }
+        }
+        
+        // Execute the scheduling algorithm
+        scheduler.execute();
+        
+        // Print the results
+        System.out.println("\nScheduling Mode: " + scheduler.getModeDescription());
+        scheduler.printGanttChart();
+        scheduler.printTableData();
+        scheduler.printMetrics();
+        
+        // Show algorithm information if requested
+        System.out.print("\nShow algorithm information? (y/n): ");
+        if (scanner.next().equalsIgnoreCase("y")) {
+            scheduler.printAlgorithmInfo();
+        }
+
+        System.out.print("\nLaunch graphical visualizer? (y/n): ");
+        String launchGui = scanner.next();
+        
+        if (launchGui.equalsIgnoreCase("y")) {
+            System.out.println("Launching Priority Scheduling Visualizer...");
+            PSVisualizer.launchVisualizer(
+                scheduler.getCompletedJobs(),
+                scheduler.getAllTimeSlices()
             );
         }
     }
