@@ -50,6 +50,7 @@
                     <mainClass>org.example.Main</mainClass>
                     <options>
                         <option>--module-path</option>
+                        <!--suppress UnresolvedMavenProperty -->
                         <option>${javafx.platform.module.path}</option>
                         <option>--add-modules</option>
                         <option>javafx.controls,javafx.fxml</option>
