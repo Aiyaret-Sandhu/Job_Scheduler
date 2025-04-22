@@ -27,6 +27,15 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 
+import javafx.scene.control.Tooltip;
+import javafx.scene.layout.Pane;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Line;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -279,37 +288,184 @@ public class FCFSVisualizer extends Application {
         Tab tab = new Tab("Timeline View");
         tab.setClosable(false);
 
-        NumberAxis xAxis = new NumberAxis();
-        xAxis.setLabel("Time Units");
+        // Create a pane to hold our custom Gantt chart
+        Pane ganttPane = new Pane();
+        ganttPane.setStyle("-fx-background-color: white;");
 
-        CategoryAxis yAxis = new CategoryAxis();
-        yAxis.setLabel("Jobs");
+        // Create a ScrollPane to allow scrolling for many jobs
+        ScrollPane scrollPane = new ScrollPane(ganttPane);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(600);
 
-        StackedBarChart<Number, String> timelineChart = new StackedBarChart<>(xAxis, yAxis);
-        timelineChart.setTitle("Job Execution Timeline");
-        timelineChart.setCategoryGap(1);
-        timelineChart.setAnimated(false);
+        // Calculate metrics for scaling
+        int maxTime = completedJobs.stream()
+                .mapToInt(job -> job.completionTime)
+                .max()
+                .orElse(0);
 
-        // We would need multiple series for stacking
-        XYChart.Series<Number, String> executionSeries = new XYChart.Series<>();
-        executionSeries.setName("Execution");
+        double timeUnitWidth = 30;  // Width per time unit in pixels
+        double jobHeight = 40;      // Height per job in pixels
+        double horizontalOffset = 150; // Space for job labels
+
+        // Set the canvas size
+        ganttPane.setPrefWidth(horizontalOffset + (maxTime * timeUnitWidth) + 50);
+        ganttPane.setPrefHeight((completedJobs.size() * (jobHeight + 10)) + 150);
+
+        // Draw timeline axis
+        Line timeAxis = new Line(horizontalOffset, 70, horizontalOffset + (maxTime * timeUnitWidth), 70);
+        timeAxis.setStroke(Color.BLACK);
+        timeAxis.setStrokeWidth(2);
+        ganttPane.getChildren().add(timeAxis);
+
+        // Draw time markers
+        int timeStep = Math.max(1, maxTime / 20); // Adapt step size to the chart width
+        for (int t = 0; t <= maxTime; t += timeStep) {
+            double xPos = horizontalOffset + (t * timeUnitWidth);
+
+            // Tick mark
+            Line tick = new Line(xPos, 65, xPos, 75);
+            tick.setStroke(Color.BLACK);
+            ganttPane.getChildren().add(tick);
+
+            // Time label
+            Text timeLabel = new Text(String.valueOf(t));
+            timeLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 10));
+            timeLabel.setX(xPos - 3);
+            timeLabel.setY(60);
+            ganttPane.getChildren().add(timeLabel);
+        }
+
+        // Title
+        Text title = new Text("Job Execution Timeline");
+        title.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        title.setX(horizontalOffset);
+        title.setY(25);
+        ganttPane.getChildren().add(title);
+
+        // Add legend
+        double legendX = horizontalOffset + 400;
+        double legendY = 25;
+
+        Text legendTitle = new Text("Legend:");
+        legendTitle.setFont(Font.font("Arial", FontWeight.BOLD, 12));
+        legendTitle.setX(legendX);
+        legendTitle.setY(legendY);
+        ganttPane.getChildren().add(legendTitle);
+
+        // Waiting time legend
+        Rectangle waitingRect = new Rectangle(legendX + 60, legendY - 10, 20, 10);
+        waitingRect.setFill(Color.LIGHTGRAY);
+        waitingRect.setStroke(Color.BLACK);
+        ganttPane.getChildren().add(waitingRect);
+
+        Text waitingText = new Text("Waiting");
+        waitingText.setFont(Font.font("Arial", FontWeight.NORMAL, 12));
+        waitingText.setX(legendX + 85);
+        waitingText.setY(legendY);
+        ganttPane.getChildren().add(waitingText);
+
+        // Execution time legend
+        Rectangle execRect = new Rectangle(legendX + 150, legendY - 10, 20, 10);
+        execRect.setFill(Color.DODGERBLUE);
+        execRect.setStroke(Color.BLACK);
+        ganttPane.getChildren().add(execRect);
+
+        Text execText = new Text("Execution");
+        execText.setFont(Font.font("Arial", FontWeight.NORMAL, 12));
+        execText.setX(legendX + 175);
+        execText.setY(legendY);
+        ganttPane.getChildren().add(execText);
+
+        // Draw job bars
+        double currentY = 100;
 
         for (FCFS.Job job : completedJobs) {
-            XYChart.Data<Number, String> data = new XYChart.Data<>(job.burstTime, job.jobId);
-            data.setNode(new HoveredThresholdNode(job.startTime, job.completionTime));
-            executionSeries.getData().add(data);
+            // Job label
+            Text jobLabel = new Text(job.jobId);
+            jobLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+            jobLabel.setX(horizontalOffset - 100);
+            jobLabel.setY(currentY + 15);
+            ganttPane.getChildren().add(jobLabel);
+
+            double barStartX = horizontalOffset + (job.arrivalTime * timeUnitWidth);
+            double waitEndX = horizontalOffset + (job.startTime * timeUnitWidth);
+            double execEndX = horizontalOffset + (job.completionTime * timeUnitWidth);
+
+            // Waiting time block (if any)
+            if (job.startTime > job.arrivalTime) {
+                Rectangle waitingBar = new Rectangle(
+                        barStartX,
+                        currentY,
+                        (job.startTime - job.arrivalTime) * timeUnitWidth,
+                        jobHeight
+                );
+                waitingBar.setFill(Color.LIGHTGRAY);
+                waitingBar.setStroke(Color.BLACK);
+                waitingBar.setStrokeWidth(1);
+
+                // Add tooltip with details
+                Tooltip waitTooltip = new Tooltip(
+                        "Job: " + job.jobId +
+                                "\nArrival Time: " + job.arrivalTime +
+                                "\nWaiting Time: " + (job.startTime - job.arrivalTime)
+                );
+                Tooltip.install(waitingBar, waitTooltip);
+
+                ganttPane.getChildren().add(waitingBar);
+
+                // Add label if there's enough space
+                if ((job.startTime - job.arrivalTime) * timeUnitWidth > 40) {
+                    Text waitLabel = new Text("Wait: " + (job.startTime - job.arrivalTime));
+                    waitLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 10));
+                    waitLabel.setX(barStartX + 5);
+                    waitLabel.setY(currentY + (jobHeight / 2) + 5);
+                    ganttPane.getChildren().add(waitLabel);
+                }
+            }
+
+            // Execution time block
+            Rectangle execBar = new Rectangle(
+                    waitEndX,
+                    currentY,
+                    job.burstTime * timeUnitWidth,
+                    jobHeight
+            );
+            execBar.setFill(Color.DODGERBLUE);
+            execBar.setStroke(Color.BLACK);
+            execBar.setStrokeWidth(1);
+
+            // Add tooltip with details
+            Tooltip execTooltip = new Tooltip(
+                    "Job: " + job.jobId +
+                            "\nStart Time: " + job.startTime +
+                            "\nBurst Time: " + job.burstTime +
+                            "\nCompletion Time: " + job.completionTime
+            );
+            Tooltip.install(execBar, execTooltip);
+
+            ganttPane.getChildren().add(execBar);
+
+            // Add execution time label if there's enough space
+            if (job.burstTime * timeUnitWidth > 40) {
+                Text execLabel = new Text("Exec: " + job.burstTime);
+                execLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 10));
+                execLabel.setFill(Color.WHITE);
+                execLabel.setX(waitEndX + 5);
+                execLabel.setY(currentY + (jobHeight / 2) + 5);
+                ganttPane.getChildren().add(execLabel);
+            }
+
+            // Add completion time marker
+            Text completeLabel = new Text("T=" + job.completionTime);
+            completeLabel.setFont(Font.font("Arial", FontWeight.NORMAL, 10));
+            completeLabel.setX(execEndX + 5);
+            completeLabel.setY(currentY + (jobHeight / 2) + 5);
+            ganttPane.getChildren().add(completeLabel);
+
+            currentY += jobHeight + 10;  // Move to next job
         }
 
-        timelineChart.getData().add(executionSeries);
-
-        // CSS styling
-        timelineChart.setStyle("""
-        .default-color0.chart-bar { 
-            -fx-bar-fill: #3498db;
-        }
-        """);
-
-        tab.setContent(timelineChart);
+        tab.setContent(scrollPane);
         return tab;
     }
 
