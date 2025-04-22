@@ -17,6 +17,16 @@ import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import org.example.schedulers.FCFS;
 
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDFont;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -404,9 +414,401 @@ public class FCFSVisualizer extends Application {
     }
 
     private void exportToPdf() {
-        // This would typically require a PDF library like Apache PDFBox or iText
-        showAlert(Alert.AlertType.INFORMATION, "PDF Export",
-                "PDF export would be implemented with a PDF library in a real application.");
+        // Suppress PDFBox logging messages
+        java.util.logging.Logger.getLogger("org.apache.pdfbox").setLevel(java.util.logging.Level.OFF);
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Report as PDF");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF Files", "*.pdf"));
+        File file = fileChooser.showSaveDialog(null);
+
+        if (file != null) {
+            try {
+                // Create a new PDF document
+                PDDocument document = new PDDocument();
+                PDPage page = new PDPage(PDRectangle.A4);
+                document.addPage(page);
+
+                // Create a content stream for adding content to the page
+                PDPageContentStream contentStream = new PDPageContentStream(document, page);
+
+                // Set up fonts
+                PDFont titleFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                PDFont headerFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                PDFont textFont = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+
+                // Add title
+                contentStream.beginText();
+                contentStream.setFont(titleFont, 18);
+                contentStream.newLineAtOffset(50, 750);
+                contentStream.showText("FCFS Scheduler Report");
+                contentStream.endText();
+
+                // Add date and time
+                contentStream.beginText();
+                contentStream.setFont(textFont, 12);
+                contentStream.newLineAtOffset(50, 730);
+                contentStream.showText("Generated: " + java.time.LocalDateTime.now().format(
+                        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+                contentStream.endText();
+
+                // Add summary metrics
+                contentStream.beginText();
+                contentStream.setFont(headerFont, 14);
+                contentStream.newLineAtOffset(50, 690);
+                contentStream.showText("Performance Metrics");
+                contentStream.endText();
+
+                String[] metrics = {
+                        "CPU Utilization: " + df.format(calculateCpuUtilization()) + "%",
+                        "Throughput: " + df.format(calculateThroughput()) + " jobs/unit",
+                        "Avg Turnaround Time: " + df.format(calculateAverageTurnaroundTime()),
+                        "Avg Waiting Time: " + df.format(calculateAverageWaitingTime()),
+                        "Avg Response Time: " + df.format(calculateAverageResponseTime())
+                };
+
+                int yPosition = 670;
+                for (String metric : metrics) {
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 12);
+                    contentStream.newLineAtOffset(70, yPosition);
+                    contentStream.showText(metric);
+                    contentStream.endText();
+                    yPosition -= 20;
+                }
+
+                // Add job table header
+                yPosition = 550;
+                contentStream.beginText();
+                contentStream.setFont(headerFont, 14);
+                contentStream.newLineAtOffset(50, yPosition);
+                contentStream.showText("Job Execution Details");
+                contentStream.endText();
+
+                yPosition -= 30;
+
+                // Table headers
+                String[] headers = {"Job ID", "Arrival", "Burst", "Start", "Complete", "Turnaround", "Waiting", "Response"};
+                int[] colWidths = {50, 50, 50, 50, 60, 70, 50, 60};
+
+                // Draw table header
+                int headerX = 50;
+                for (int i = 0; i < headers.length; i++) {
+                    contentStream.beginText();
+                    contentStream.setFont(headerFont, 10);
+                    contentStream.newLineAtOffset(headerX, yPosition);
+                    contentStream.showText(headers[i]);
+                    contentStream.endText();
+                    headerX += colWidths[i];
+                }
+
+                // Table rows
+                int jobsPerPage = 20;
+                int jobCount = 0;
+
+                // Track the row positions
+                yPosition -= 20;
+
+                for (FCFS.Job job : completedJobs) {
+                    // If we've reached the limit for this page, create a new page
+                    if (jobCount >= jobsPerPage) {
+                        contentStream.close();
+                        page = new PDPage(PDRectangle.A4);
+                        document.addPage(page);
+                        contentStream = new PDPageContentStream(document, page);
+                        yPosition = 750;
+
+                        // Add table headers again on new page
+                        contentStream.beginText();
+                        contentStream.setFont(headerFont, 14);
+                        contentStream.newLineAtOffset(50, yPosition);
+                        contentStream.showText("Job Execution Details (continued)");
+                        contentStream.endText();
+
+                        yPosition -= 30;
+                        headerX = 50;
+
+                        for (int i = 0; i < headers.length; i++) {
+                            contentStream.beginText();
+                            contentStream.setFont(headerFont, 10);
+                            contentStream.newLineAtOffset(headerX, yPosition);
+                            contentStream.showText(headers[i]);
+                            contentStream.endText();
+                            headerX += colWidths[i];
+                        }
+
+                        yPosition -= 20;
+                        jobCount = 0;
+                    }
+
+                    // Row data
+                    int cellX = 50;
+
+                    // Job ID
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(job.jobId);
+                    contentStream.endText();
+                    cellX += colWidths[0];
+
+                    // Arrival Time
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(String.valueOf(job.arrivalTime));
+                    contentStream.endText();
+                    cellX += colWidths[1];
+
+                    // Burst Time
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(String.valueOf(job.burstTime));
+                    contentStream.endText();
+                    cellX += colWidths[2];
+
+                    // Start Time
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(String.valueOf(job.startTime));
+                    contentStream.endText();
+                    cellX += colWidths[3];
+
+                    // Completion Time
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(String.valueOf(job.completionTime));
+                    contentStream.endText();
+                    cellX += colWidths[4];
+
+                    // Turnaround Time
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(String.valueOf(job.turnaroundTime));
+                    contentStream.endText();
+                    cellX += colWidths[5];
+
+                    // Waiting Time
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(String.valueOf(job.waitingTime));
+                    contentStream.endText();
+                    cellX += colWidths[6];
+
+                    // Response Time
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(cellX, yPosition);
+                    contentStream.showText(String.valueOf(job.responseTime));
+                    contentStream.endText();
+
+                    jobCount++;
+                    yPosition -= 20;
+                }
+
+                // Add a simple representation of the Gantt chart
+                if (jobCount < jobsPerPage - 5) {
+                    yPosition -= 40;
+
+                    contentStream.beginText();
+                    contentStream.setFont(headerFont, 14);
+                    contentStream.newLineAtOffset(50, yPosition);
+                    contentStream.showText("Gantt Chart");
+                    contentStream.endText();
+
+                    // Add generation timestamp
+                    String timestamp = "Generated on: " + java.time.LocalDateTime.now().format(
+                            java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 10);
+                    contentStream.newLineAtOffset(250, yPosition);
+                    contentStream.showText(timestamp);
+                    contentStream.endText();
+
+                    yPosition -= 40;
+
+                    // Draw time scale
+                    int maxTime = completedJobs.stream()
+                            .mapToInt(j -> j.completionTime)
+                            .max()
+                            .orElse(0);
+
+                    float timeUnitWidth = 400f / maxTime;  // Scale to fit on page
+                    int scaleStep = Math.max(1, maxTime / 20);  // Determine appropriate scale step
+
+                    // Draw time scale markers
+                    contentStream.setLineWidth(0.5f);
+                    for (int t = 0; t <= maxTime; t += scaleStep) {
+                        float xPos = 100 + (t * timeUnitWidth);
+
+                        // Draw tick mark
+                        contentStream.moveTo(xPos, yPosition + 5);
+                        contentStream.lineTo(xPos, yPosition);
+                        contentStream.stroke();
+
+                        // Draw time label
+                        contentStream.beginText();
+                        contentStream.setFont(textFont, 8);
+                        contentStream.newLineAtOffset(xPos - 3, yPosition - 15);
+                        contentStream.showText(String.valueOf(t));
+                        contentStream.endText();
+                    }
+
+                    yPosition -= 25;
+                    int timelineHeight = 25;  // Increase height for better visibility
+
+                    // Add legend
+                    float legendX = 400;
+                    contentStream.beginText();
+                    contentStream.setFont(textFont, 8);
+                    contentStream.newLineAtOffset(legendX, yPosition);
+                    contentStream.showText("Legend:");
+                    contentStream.endText();
+
+                    // Waiting time legend
+                    contentStream.setNonStrokingColor(0.8f, 0.8f, 0.8f); // Light gray
+                    contentStream.addRect(legendX + 50, yPosition - 5, 15, 10);
+                    contentStream.fill();
+
+                    contentStream.beginText();
+                    contentStream.setNonStrokingColor(0, 0, 0);
+                    contentStream.setFont(textFont, 8);
+                    contentStream.newLineAtOffset(legendX + 70, yPosition);
+                    contentStream.showText("Waiting");
+                    contentStream.endText();
+
+                    // Execution time legend
+                    contentStream.setNonStrokingColor(0.2f, 0.6f, 0.9f);
+                    contentStream.addRect(legendX + 120, yPosition - 5, 15, 10);
+                    contentStream.fill();
+
+                    contentStream.beginText();
+                    contentStream.setNonStrokingColor(0, 0, 0);
+                    contentStream.setFont(textFont, 8);
+                    contentStream.newLineAtOffset(legendX + 140, yPosition);
+                    contentStream.showText("Execution");
+                    contentStream.endText();
+
+                    yPosition -= 25;
+
+                    // Draw job rows with clear labels and borders
+                    for (FCFS.Job job : completedJobs) {
+                        contentStream.beginText();
+                        contentStream.setFont(textFont, 10);
+                        contentStream.newLineAtOffset(50, yPosition);
+                        contentStream.showText(job.jobId);
+                        contentStream.endText();
+
+                        // Add text labels for start/end times inside the bars
+                        float barStartX = 100 + (job.arrivalTime * timeUnitWidth);
+                        float waitEndX = 100 + (job.startTime * timeUnitWidth);
+                        float execEndX = 100 + (job.completionTime * timeUnitWidth);
+
+                        // Draw waiting time (if any) with border
+                        if (job.startTime > job.arrivalTime) {
+                            contentStream.setNonStrokingColor(0.8f, 0.8f, 0.8f); // Light gray
+                            contentStream.addRect(barStartX, yPosition - 5,
+                                    (job.startTime - job.arrivalTime) * timeUnitWidth,
+                                    timelineHeight);
+                            contentStream.fill();
+
+                            // Add border
+                            contentStream.setStrokingColor(0, 0, 0);
+                            contentStream.setLineWidth(0.5f);
+                            contentStream.addRect(barStartX, yPosition - 5,
+                                    (job.startTime - job.arrivalTime) * timeUnitWidth,
+                                    timelineHeight);
+                            contentStream.stroke();
+
+                            // Add label if there's enough space
+                            if ((job.startTime - job.arrivalTime) * timeUnitWidth > 25) {
+                                contentStream.beginText();
+                                contentStream.setNonStrokingColor(0, 0, 0);
+                                contentStream.setFont(textFont, 8);
+                                contentStream.newLineAtOffset(barStartX + 2, yPosition + 5);
+                                contentStream.showText("Wait: " + (job.startTime - job.arrivalTime));
+                                contentStream.endText();
+                            }
+                        }
+
+                        // Draw execution time with border
+                        contentStream.setNonStrokingColor(0.2f, 0.6f, 0.9f);  // Blue color
+                        contentStream.addRect(waitEndX, yPosition - 5,
+                                job.burstTime * timeUnitWidth,
+                                timelineHeight);
+                        contentStream.fill();
+
+                        // Add border
+                        contentStream.setStrokingColor(0, 0, 0);
+                        contentStream.setLineWidth(0.5f);
+                        contentStream.addRect(waitEndX, yPosition - 5,
+                                job.burstTime * timeUnitWidth,
+                                timelineHeight);
+                        contentStream.stroke();
+
+                        // Add time labels
+                        if (job.burstTime * timeUnitWidth > 25) {
+                            contentStream.beginText();
+                            contentStream.setNonStrokingColor(1, 1, 1);  // White text
+                            contentStream.setFont(textFont, 8);
+                            contentStream.newLineAtOffset(waitEndX + 2, yPosition + 5);
+                            contentStream.showText("Exec: " + job.burstTime);
+                            contentStream.endText();
+                        }
+
+                        // Add completion time
+                        contentStream.beginText();
+                        contentStream.setNonStrokingColor(0, 0, 0);
+                        contentStream.setFont(textFont, 8);
+                        contentStream.newLineAtOffset(execEndX + 5, yPosition + 5);
+                        contentStream.showText("T=" + job.completionTime);
+                        contentStream.endText();
+
+                        yPosition -= timelineHeight + 15;  // More space between jobs
+
+                        // Check if we need to add a new page for the gantt chart
+                        if (yPosition < 50) {
+                            contentStream.close();
+                            page = new PDPage(PDRectangle.A4);
+                            document.addPage(page);
+                            contentStream = new PDPageContentStream(document, page);
+                            yPosition = 750;
+
+                            contentStream.beginText();
+                            contentStream.setFont(headerFont, 14);
+                            contentStream.newLineAtOffset(50, yPosition);
+                            contentStream.showText("Gantt Chart (continued)");
+                            contentStream.endText();
+                            yPosition -= 40;
+                        }
+                    }
+
+                    // Reset color to black for text
+                    contentStream.setNonStrokingColor(0, 0, 0);
+                }
+
+                // Close the content stream
+                contentStream.close();
+
+                // Save the document
+                document.save(file);
+                document.close();
+
+                showAlert(Alert.AlertType.INFORMATION, "Export Successful",
+                        "PDF report exported successfully!");
+
+            } catch (IOException e) {
+                showAlert(Alert.AlertType.ERROR, "Export Failed",
+                        "Failed to export PDF: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
     }
 
     private void exportToJson() {
