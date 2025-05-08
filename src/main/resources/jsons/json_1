@@ -1,6 +1,0 @@
-{"jobs": [
-  {"id": "P1", "arrival": 0, "burst": 5, "start": 0, "completion": 5, "turnaround": 5, "waiting": 0, "response": 0},
-  {"id": "P2", "arrival": 1, "burst": 3, "start": 5, "completion": 8, "turnaround": 7, "waiting": 4, "response": 4},
-  {"id": "P3", "arrival": 2, "burst": 8, "start": 8, "completion": 16, "turnaround": 14, "waiting": 6, "response": 6},
-  {"id": "P4", "arrival": 3, "burst": 6, "start": 16, "completion": 22, "turnaround": 19, "waiting": 13, "response": 13}
-]}
