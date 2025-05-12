@@ -22,76 +22,84 @@ public class Main {
         printBanner();
 
         Scanner scanner = new Scanner(System.in);
-    
+
         System.out.println("CPU Scheduling Algorithm Simulator");
-        System.out.println("1. First-Come, First-Served (FCFS)");
-        System.out.println("2. Round Robin (RR)");
-        System.out.println("3. Shortest Job First (SJF)");
-        System.out.println("4. Priority Scheduling (PS)");  // Add this line
-        // Add other algorithms as needed
-        System.out.print("Select algorithm: ");
-        
-        int choice = scanner.nextInt();
-        
-        switch (choice) {
-            case 1:
-                System.out.println("1. Enter custom data");
-                System.out.println("2. Use dummy data");
-                System.out.print("Select option: ");
-                int fcfsOption = scanner.nextInt();
-                if (fcfsOption == 1) {
-                    runFCFS(scanner, false);
-                } else {
-                    runFCFS(scanner, true);
-                }
-                break;
-            case 2:
-                System.out.println("1. Enter custom data");
-                System.out.println("2. Use dummy data (Preemptive)");
-                System.out.println("3. Use dummy data (Non-Preemptive)");
-                System.out.print("Select option: ");
-                int rrOption = scanner.nextInt();
-                if (rrOption == 1) {
-                    runRR(scanner, false, true);  // Custom data, default to preemptive
-                } else if (rrOption == 2) {
-                    runRR(scanner, true, true);   // Dummy data, preemptive
-                } else {
-                    runRR(scanner, true, false);  // Dummy data, non-preemptive
-                }
-                break;
-            case 3:
-                System.out.println("1. Enter custom data");
-                System.out.println("2. Use dummy data (Preemptive)");
-                System.out.println("3. Use dummy data (Non-Preemptive)");
-                System.out.print("Select option: ");
-                int sjfOption = scanner.nextInt();
-                if (sjfOption == 1) {
-                    runSJF(scanner, false, true);  // Custom data, default to preemptive
-                } else if (sjfOption == 2) {
-                    runSJF(scanner, true, true);   // Dummy data, preemptive
-                } else {
-                    runSJF(scanner, true, false);  // Dummy data, non-preemptive
-                }
-                break;
-            case 4:  // Add case for PS
-                System.out.println("1. Enter custom data");
-                System.out.println("2. Use dummy data (Preemptive)");
-                System.out.println("3. Use dummy data (Non-Preemptive)");
-                System.out.print("Select option: ");
-                int psOption = scanner.nextInt();
-                if (psOption == 1) {
-                    runPS(scanner, false, true);  // Custom data, default to preemptive
-                } else if (psOption == 2) {
-                    runPS(scanner, true, true);   // Dummy data, preemptive
-                } else {
-                    runPS(scanner, true, false);  // Dummy data, non-preemptive
-                }
-                break;
-            // Add other cases for other algorithms
-            default:
-                System.out.println("Invalid choice");
+
+        boolean running = true; // Flag to control the loop
+        while (running) {
+            System.out.println("\nSelect an algorithm:");
+            System.out.println("1. First-Come, First-Served (FCFS)");
+            System.out.println("2. Round Robin (RR)");
+            System.out.println("3. Shortest Job First (SJF)");
+            System.out.println("4. Priority Scheduling (PS)");
+            System.out.println("5. Quit");
+            System.out.print("Enter your choice: ");
+
+            int choice = scanner.nextInt();
+
+            switch (choice) {
+                case 1:
+                    System.out.println("1. Enter custom data");
+                    System.out.println("2. Use dummy data");
+                    System.out.print("Select option: ");
+                    int fcfsOption = scanner.nextInt();
+                    if (fcfsOption == 1) {
+                        runFCFS(scanner, false);
+                    } else {
+                        runFCFS(scanner, true);
+                    }
+                    break;
+                case 2:
+                    System.out.println("1. Enter custom data");
+                    System.out.println("2. Use dummy data (Preemptive)");
+                    System.out.println("3. Use dummy data (Non-Preemptive)");
+                    System.out.print("Select option: ");
+                    int rrOption = scanner.nextInt();
+                    if (rrOption == 1) {
+                        runRR(scanner, false, true);  // Custom data, default to preemptive
+                    } else if (rrOption == 2) {
+                        runRR(scanner, true, true);   // Dummy data, preemptive
+                    } else {
+                        runRR(scanner, true, false);  // Dummy data, non-preemptive
+                    }
+                    break;
+                case 3:
+                    System.out.println("1. Enter custom data");
+                    System.out.println("2. Use dummy data (Preemptive)");
+                    System.out.println("3. Use dummy data (Non-Preemptive)");
+                    System.out.print("Select option: ");
+                    int sjfOption = scanner.nextInt();
+                    if (sjfOption == 1) {
+                        runSJF(scanner, false, true);  // Custom data, default to preemptive
+                    } else if (sjfOption == 2) {
+                        runSJF(scanner, true, true);   // Dummy data, preemptive
+                    } else {
+                        runSJF(scanner, true, false);  // Dummy data, non-preemptive
+                    }
+                    break;
+                case 4:
+                    System.out.println("1. Enter custom data");
+                    System.out.println("2. Use dummy data (Preemptive)");
+                    System.out.println("3. Use dummy data (Non-Preemptive)");
+                    System.out.print("Select option: ");
+                    int psOption = scanner.nextInt();
+                    if (psOption == 1) {
+                        runPS(scanner, false, true);  // Custom data, default to preemptive
+                    } else if (psOption == 2) {
+                        runPS(scanner, true, true);   // Dummy data, preemptive
+                    } else {
+                        runPS(scanner, true, false);  // Dummy data, non-preemptive
+                    }
+                    break;
+                case 5:
+                    System.out.println("Exiting the program. Goodbye!");
+                    running = false; // Exit the loop
+                    break;
+                default:
+                    System.out.println("Invalid choice. Please try again.");
+            }
         }
-        
+
         scanner.close();
     }
 
